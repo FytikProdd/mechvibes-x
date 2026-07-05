@@ -54,29 +54,11 @@ log.hooks.push((msg, { transportName }) => {
 
 var win = null;
 var tray = null;
-var audioEngineWin = null;
 global.app_version = app.getVersion();
 global.user_dir = user_dir;
 global.custom_dir = custom_dir;
 global.current_pack_store_id = current_pack_store_id;
 fs.ensureDirSync(custom_dir);
-
-// Create background audio window
-function createAudioEngineWindow() {
-  audioEngineWin = new BrowserWindow({
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'audio_engine.js'),
-      contextIsolation: false,
-      nodeIntegration: true,
-      enableRemoteModule: true,
-    }
-  });
-  audioEngineWin.loadFile('./src/audio_engine.html');
-  audioEngineWin.on('closed', () => {
-    audioEngineWin = null;
-  });
-}
 
 // Create application window
 function createWindow(show = false) {
@@ -106,9 +88,17 @@ function createWindow(show = false) {
 
   win.on('closed', function () {
     win = null;
-    if (process.platform === 'darwin') {
-      app.dock.hide();
+  });
+
+  win.on('close', function (event) {
+    if (!app.isQuiting) {
+      if (process.platform === 'darwin') {
+        app.dock.hide();
+      }
+      event.preventDefault();
+      win.hide();
     }
+    return false;
   });
 
   win.on("unresponsive", () => {
@@ -117,6 +107,8 @@ function createWindow(show = false) {
 
   if (show) {
     win.show();
+  } else {
+    win.close();
   }
 
   return win;
@@ -125,9 +117,7 @@ function createWindow(show = false) {
 // Check for single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 app.on('second-instance', () => {
-  if (win === null) {
-    createWindow(true);
-  } else {
+  if (win) {
     if (process.platform === 'darwin') {
       app.dock.show();
     }
@@ -144,13 +134,10 @@ if (!gotTheLock) {
     log.silly("Ready event has fired.");
     const startup_handler = new StartupHandler(app);
 
-    log.silly("Creating background audio engine window...");
-    createAudioEngineWindow();
-
-    log.silly("Creating main window...");
-    if (startup_handler.was_started_at_login && start_minimized.is_enabled) {
-      win = null;
-    } else {
+    log.silly("Creating main window for the first time...");
+    if(startup_handler.was_started_at_login && start_minimized.is_enabled){
+      win = createWindow(false);
+    }else{
       win = createWindow(true);
     }
 
@@ -167,8 +154,7 @@ if (!gotTheLock) {
         getVolume().then((v) => {
           if(v !== volume){
             volume = v;
-            if (audioEngineWin) audioEngineWin.webContents.send("system-volume-update", volume);
-            if (win) win.webContents.send("system-volume-update", volume);
+            win.webContents.send("system-volume-update", volume);
           }
         }).catch((err) => {
           clearInterval(sys_check_interval);
@@ -181,7 +167,7 @@ if (!gotTheLock) {
         getMute().then((m) => {
           if(m !== system_mute){
             system_mute = m;
-            if (win) win.webContents.send("system-mute-status", system_mute);
+            win.webContents.send("system-mute-status", system_mute);
           }
         }).catch((err) => {
           clearInterval(sys_check_interval);
@@ -196,11 +182,11 @@ if (!gotTheLock) {
 
     // Keyboard event forwarders
     iohook.on('keydown', (event) => {
-      if (audioEngineWin) audioEngineWin.webContents.send("keydown", event);
+      win.webContents.send("keydown", event);
     });
 
     iohook.on('keyup', (event) => {
-      if (audioEngineWin) audioEngineWin.webContents.send("keyup", event);
+      win.webContents.send("keyup", event);
     });
 
     // Generate tray icon context menu
@@ -209,15 +195,11 @@ if (!gotTheLock) {
         {
           label: 'Mechvibes X',
           click: function () {
-            if (win === null) {
-              createWindow(true);
-            } else {
-              if (process.platform === 'darwin') {
-                app.dock.show();
-              }
-              win.show();
-              win.focus();
+            if (process.platform === 'darwin') {
+              app.dock.show();
             }
+            win.show();
+            win.focus();
           },
         },
         {
@@ -262,8 +244,7 @@ if (!gotTheLock) {
             }else{
               iohook.stop();
             }
-            if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
-            if (win) win.webContents.send("mechvibes-mute-status", mute.is_enabled);
+            win.webContents.send("mechvibes-mute-status", mute.is_enabled);
           },
         },
         {
@@ -291,8 +272,7 @@ if (!gotTheLock) {
               checked: active_volume.is_enabled,
               click: function () {
                 active_volume.toggle();
-                if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
-                if (win) win.webContents.send("ava-toggle", active_volume.is_enabled);
+                win.webContents.send("ava-toggle", active_volume.is_enabled);
               },
             },
             {
@@ -301,8 +281,7 @@ if (!gotTheLock) {
               checked: random_pitch.is_enabled,
               click: function () {
                 random_pitch.toggle();
-                if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
-                if (win) win.webContents.send("random-pitch-toggle", random_pitch.is_enabled);
+                win.webContents.send("random-pitch-toggle", random_pitch.is_enabled);
               },
             },
             {
@@ -311,8 +290,7 @@ if (!gotTheLock) {
               checked: spatial_audio.is_enabled,
               click: function () {
                 spatial_audio.toggle();
-                if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
-                if (win) win.webContents.send("spatial-audio-toggle", spatial_audio.is_enabled);
+                win.webContents.send("spatial-audio-toggle", spatial_audio.is_enabled);
               },
             },
           ],
@@ -342,23 +320,15 @@ if (!gotTheLock) {
         });
 
         tray.on("right-click", () => {
-          if (win === null) {
-            createWindow(true);
-          } else {
-            app.dock.show();
-            win.show();
-            win.focus();
-          }
+          app.dock.show();
+          win.show();
+          win.focus();
         })
       }else{
         tray.setContextMenu(contextMenu);
         tray.on("double-click", () => {
-          if (win === null) {
-            createWindow(true);
-          } else {
-            win.show();
-            win.focus();
-          }
+          win.show();
+          win.focus();
         })
       }
     }
@@ -377,7 +347,6 @@ if (!gotTheLock) {
       } else {
         random_pitch.disable();
       }
-      if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
       updateTrayMenu();
     });
 
@@ -387,12 +356,7 @@ if (!gotTheLock) {
       } else {
         spatial_audio.disable();
       }
-      if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
       updateTrayMenu();
-    });
-
-    ipcMain.on("settings-changed", () => {
-      if (audioEngineWin) audioEngineWin.webContents.send("settings-changed");
     });
 
     // IPC listeners from renderer process
