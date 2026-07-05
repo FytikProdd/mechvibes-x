@@ -26,8 +26,8 @@ const errorTranslation = {
 }
 
 function resizeWindow(){
-	// ensure a render tick has occured before we resize,
-	// so that we know we're resizing to the right size.
+	
+	
 	setTimeout(() => {
 		ipcRenderer.send("resize-installer", document.scrollingElement.scrollHeight);
 	},5)
@@ -55,8 +55,8 @@ ipcRenderer.on("install-pack", (event, packId) => {
 				askPrompt.style.display = "block";
 				resizeWindow();
 			}).catch((r) => {
-				// json parse error
-				// NOTE: in theory this shouldn't happen.
+				
+				
 				lock = false;
 				logo.innerText = `Error (PARSE)`;
 			});

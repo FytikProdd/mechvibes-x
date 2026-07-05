@@ -1,7 +1,7 @@
 {
   "name": "mechvibes-x",
   "productName": "Mechvibes X",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Play mechanical keyboard sounds as you type. (cleaned fork of Mechvibes)",
   "main": "src/main.js",
   "scripts": {
@@ -93,6 +93,7 @@
   },
   "devDependencies": {
     "electron": "^12.2.3",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "strip-comments": "^2.0.1"
   }
 }

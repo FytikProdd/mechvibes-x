@@ -23,6 +23,7 @@ let system_volume = 50;
 let current_pack = null;
 let current_key_down = null;
 let random_pitch_enabled = false;
+let spatial_audio_enabled = false;
 const packs = [];
 const all_sound_files = {};
 
@@ -232,7 +233,7 @@ function getSavedPack() {
   }
 }
 
-// set pack by its index in the packs array
+
 function setPack(pack_id){
   let index = 0;
   Object.keys(packs).map((packId) => {
@@ -245,7 +246,7 @@ function setPack(pack_id){
   store.set(MV_PACK_LSID, current_pack.pack_id);
 }
 
-// set pack by its string id
+
 function setPackByIndex(index){
   loadPack(index);
   current_pack = packs[index];
@@ -304,6 +305,8 @@ function packsToOptions(packs, pack_list) {
     const tray_icon_toggle_group = document.getElementById("tray_icon_toggle_group");
     const random_pitch_toggle = document.getElementById("random_pitch_toggle");
     const random_pitch_toggle_group = document.getElementById("random_pitch_toggle_group");
+    const spatial_audio_toggle = document.getElementById("spatial_audio_toggle");
+    const spatial_audio_toggle_group = document.getElementById("spatial_audio_toggle_group");
 
     app_logo.innerHTML = 'Loading...';
     version.innerHTML = APP_VERSION;
@@ -347,6 +350,23 @@ function packsToOptions(packs, pack_list) {
       random_pitch_enabled = random_pitch_toggle.checked;
       store.set(MV_RANDOM_PITCH_LSID, random_pitch_toggle.checked);
       ipcRenderer.send("random-pitch-change", random_pitch_toggle.checked);
+    }
+
+    const MV_SPATIAL_AUDIO_LSID = 'mechvibes-spatial-audio';
+    if (store.get(MV_SPATIAL_AUDIO_LSID) !== undefined){
+      spatial_audio_toggle.checked = store.get(MV_SPATIAL_AUDIO_LSID);
+      spatial_audio_enabled = spatial_audio_toggle.checked;
+    } else {
+      spatial_audio_toggle.checked = false;
+      spatial_audio_enabled = false;
+    }
+    spatial_audio_toggle_group.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      spatial_audio_toggle.checked = !spatial_audio_toggle.checked;
+      spatial_audio_enabled = spatial_audio_toggle.checked;
+      store.set(MV_SPATIAL_AUDIO_LSID, spatial_audio_toggle.checked);
+      ipcRenderer.send("spatial-audio-change", spatial_audio_toggle.checked);
     }
 
     let initTray = () => {
@@ -411,6 +431,11 @@ function packsToOptions(packs, pack_list) {
       random_pitch_toggle.checked = enabled;
     });
 
+    ipcRenderer.on("spatial-audio-toggle", (_event, enabled) => {
+      spatial_audio_enabled = enabled;
+      spatial_audio_toggle.checked = enabled;
+    });
+
     let pressed_keys = {};
 
     ipcRenderer.on('keyup', (_, { keycode }) => {
@@ -462,9 +487,27 @@ function packsToOptions(packs, pack_list) {
   });
 })(window, document);
 
+const keycodeToPan = {
+  1: -1.0, 41: -1.0, 15: -1.0, 58: -1.0, 42: -1.0, 29: -1.0,
+  2: -0.8, 16: -0.8, 30: -0.8, 44: -0.8, 3675: -0.8,
+  3: -0.6, 17: -0.6, 31: -0.6, 45: -0.6, 56: -0.6,
+  4: -0.4, 18: -0.4, 32: -0.4, 46: -0.4,
+  5: -0.2, 19: -0.2, 33: -0.2, 47: -0.2,
+  6: -0.1, 20: -0.1, 34: -0.1, 48: -0.1,
+  7: 0.1, 21: 0.1, 35: 0.1, 49: 0.1, 57: 0.0,
+  8: 0.3, 22: 0.3, 36: 0.3, 50: 0.3,
+  9: 0.5, 23: 0.5, 37: 0.5, 51: 0.5,
+  10: 0.7, 24: 0.7, 38: 0.7, 52: 0.7, 3640: 0.7,
+  11: 0.85, 25: 0.85, 39: 0.85, 53: 0.85, 3676: 0.85,
+  12: 1.0, 13: 1.0, 14: 1.0, 26: 1.0, 27: 1.0, 43: 1.0, 40: 1.0, 28: 1.0, 54: 1.0, 3613: 1.0,
+  3666: 1.0, 3667: 1.0, 3655: 1.0, 3663: 1.0, 3657: 1.0, 3665: 1.0,
+  57416: 1.0, 57419: 1.0, 57421: 1.0, 57424: 1.0,
+  69: 1.0, 3637: 1.0, 55: 1.0, 74: 1.0, 3597: 1.0, 78: 1.0, 3612: 1.0, 83: 1.0,
+  79: 1.0, 80: 1.0, 81: 1.0, 75: 1.0, 76: 1.0, 77: 1.0, 71: 1.0, 72: 1.0, 73: 1.0, 82: 1.0
+};
+
 function playSound(sound_id, volume) {
   if(current_pack.audio === undefined){
-    // sound for this pack hasn't been loaded
     return;
   }
   const play_type = current_pack.key_define_type ? current_pack.key_define_type : 'single';
@@ -474,15 +517,7 @@ function playSound(sound_id, volume) {
   }
 
   if(active_volume){
-    // dynamic volume adjustment
-    log.silly(`Volume: ${volume}`);
-    log.silly(`System Volume: ${system_volume}`);
-
     const adjustedVolume = volume * (100 / system_volume);
-
-    log.silly(`Adjusted Volume: ${adjustedVolume}`);
-    log.silly(`Result Volume: ${adjustedVolume / 100}`);
-
     sound.volume(1);
     Howler.masterGain.gain.setValueAtTime(Number(adjustedVolume / 100), Howler.ctx.currentTime);
   }else{
@@ -492,17 +527,26 @@ function playSound(sound_id, volume) {
 
   let soundId;
   if (play_type == 'single') {
-    // When the pack ships multiple samples per key, pick one at random per keypress.
     const variants = current_pack.audio_variants && current_pack.audio_variants[sound_id];
     soundId = sound.play(variants ? variants[Math.floor(Math.random() * variants.length)] : sound_id);
   } else {
     soundId = sound.play();
   }
 
-  if (random_pitch_enabled && soundId) {
-    const randomRate = 1 + (Math.random() - 0.5) * 0.08; // ±4% speed/pitch variation
-    sound.rate(randomRate, soundId);
-    const randomVolume = 1 + (Math.random() - 0.5) * 0.15; // ±7.5% volume variation
-    sound.volume(Math.max(0.1, Math.min(1.0, randomVolume)), soundId);
+  if (soundId) {
+    if (random_pitch_enabled) {
+      const randomRate = 1 + (Math.random() - 0.5) * 0.08;
+      sound.rate(randomRate, soundId);
+      const randomVolume = 1 + (Math.random() - 0.5) * 0.15;
+      sound.volume(Math.max(0.1, Math.min(1.0, randomVolume)), soundId);
+    }
+    if (spatial_audio_enabled) {
+      const match = sound_id.match(/keycode-(\d+)/);
+      const keycode = match ? parseInt(match[1]) : null;
+      if (keycode !== null) {
+        const panValue = keycodeToPan[keycode] !== undefined ? keycodeToPan[keycode] : 0.0;
+        sound.stereo(panValue, soundId);
+      }
+    }
   }
 }

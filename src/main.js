@@ -28,6 +28,7 @@ const mute = new StoreToggle("mechvibes-muted", false);
 const start_minimized = new StoreToggle("mechvibes-start-minimized", false);
 const active_volume = new StoreToggle("mechvibes-active-volume", true);
 const random_pitch = new StoreToggle("mechvibes-random-pitch", false);
+const spatial_audio = new StoreToggle("mechvibes-spatial-audio", false);
 
 log.transports.file.fileName = "mechvibes.log";
 log.transports.file.level = "info";
@@ -79,6 +80,7 @@ function createWindow(show = false) {
     win.webContents.send("ava-toggle", active_volume.is_enabled);
     win.webContents.send("mechvibes-mute-status", mute.is_enabled);
     win.webContents.send("random-pitch-toggle", random_pitch.is_enabled);
+    win.webContents.send("spatial-audio-toggle", spatial_audio.is_enabled);
   })
 
   win.on('closed', function () {
@@ -275,6 +277,15 @@ if (!gotTheLock) {
                 win.webContents.send("random-pitch-toggle", random_pitch.is_enabled);
               },
             },
+            {
+              label: 'Spatial Audio',
+              type: 'checkbox',
+              checked: spatial_audio.is_enabled,
+              click: function () {
+                spatial_audio.toggle();
+                win.webContents.send("spatial-audio-toggle", spatial_audio.is_enabled);
+              },
+            },
           ],
         },
         {
@@ -332,6 +343,15 @@ if (!gotTheLock) {
       updateTrayMenu();
     });
 
+    ipcMain.on("spatial-audio-change", (event, enabled) => {
+      if (enabled) {
+        spatial_audio.enable();
+      } else {
+        spatial_audio.disable();
+      }
+      updateTrayMenu();
+    });
+
     ipcMain.on("show_tray_icon", (event, show) => {
       if(show && tray === null){
         createTrayIcon();
@@ -348,10 +368,10 @@ if (!gotTheLock) {
       if(window_options.name !== undefined && typeof window_options.name == "string"){
         log.variables.sender = window_options.name
       }else{
-        log.variables.sender = "u/w"; // unknown window
+        log.variables.sender = "u/w"; 
       }
       log[level](message);
-      log.variables.sender = "main"; // reset sender
+      log.variables.sender = "main"; 
     })
 
     log.debug(`Platform: ${process.platform}`);

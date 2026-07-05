@@ -70,6 +70,5 @@ ipcRenderer.on("debug-update", (event, json) => {
 	refresh();
 })
 
-// $("#remote_toggle_group").on("click", () => {
-// 	console.log("...");
-// })
+
+

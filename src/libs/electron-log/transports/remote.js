@@ -1,10 +1,10 @@
 'use strict';
 
-/**
- * We are overriding the default electron-log remote transport
- * because it doesn't process HTTP response codes,
- * which is a problem.
- */
+
+
+
+
+
 
 const { app } = require('electron');
 const http = require('http');
@@ -15,7 +15,7 @@ const transform = require('electron-log/src/transform');
 module.exports = remoteTransportFactory;
 
 function remoteTransportFactory(electronLog, defaultUrl) {
-	// NOTE: The IPC server requires an identifier to be set, otherwise logs will be rejected with a 403 error.
+	
 	transport.client = { name: 'Mechvibes' };
 	transport.depth = 6;
 	transport.level = false;
@@ -29,22 +29,22 @@ function remoteTransportFactory(electronLog, defaultUrl) {
 	transport.onError = null;
 	transport.transformBody = function (body) { return JSON.stringify(body) };
 
-	// TODO: Add a queue to store messages while the transport is disabled, and send them when it's enabled
-	// Use a BULK request for sending this, instead of a LOG request for each message
-	// transport.queue = [];
+	
+	
+	
 
-	// TODO: transport.enable() and transport.disable() methods
-	// which do what debug.enable() and debug.disable() do in main.js
+	
+	
 
-	// TODO: transport.clear() method
+	
 	transport.clear = function () {
 		throw new Error('Not implemented');
-		// TODO: import fetch
-		// fetch(debug.remoteUrl, {method: "DELETE"}).then(() => {
+		
+		
 
-		// }).catch((e) => {
-		//   log.error(e);
-		// });
+		
+		
+		
 	};
 
 	return transport;
@@ -66,7 +66,7 @@ function remoteTransportFactory(electronLog, defaultUrl) {
 			variables: message.variables,
 		});
 
-		// log the fact we're sending messages remotely to the local log, so there's a record of it
+		
 		electronLog.variables.sender = 'log.remote › sending › ' + message.variables.sender;
 		electronLog.logMessageWithTransports(
 			{
@@ -85,9 +85,9 @@ function remoteTransportFactory(electronLog, defaultUrl) {
 			Buffer.from(body, 'utf8')
 		);
 
-		// process the response
+		
 		request.on('response', function (response) {
-			// read the response
+			
 			var responseData = '';
 			response.setEncoding('utf8');
 			response.on('data', function (chunk) {
@@ -115,10 +115,10 @@ function remoteTransportFactory(electronLog, defaultUrl) {
 			});
 		});
 
-		// handle errors
+		
 		request.on('error', transport.onError || onError);
 
-		// default error handler
+		
 		function onError(error) {
 			electronLog.variables.sender = 'log.remote';
 			electronLog.logMessageWithTransports(
