@@ -21,7 +21,7 @@
    - Tweak pitch (±4%) and volume (±7.5%) randomly on each keypress.
    - Eliminates repetitive robotic patterns ("machine-gun" effect) and replicates realistic typing variance.
 3. **Clean & Optimized Codebase ⚡**
-   - Comment-stripped, minified-ready, and lightweight Electron implementation for lower memory consumption.
+   - Optimized, lightweight, and resource-efficient Electron implementation for lower memory consumption.
    - Built and locked with Bun package manager for fast development.
 
 ### 🎵 Soundpacks Notice & Credits
@@ -67,8 +67,8 @@ If you prefer to compile it yourself:
 2. **Случайная тональность и громкость 🎵**
    - Высота звука (±4%) и его громкость (±7.5%) меняются при каждом нажатии.
    - Это убирает эффект "пулемета" (одинаковых звуков) и делает печать максимально естественной и живой.
-3. **Очищенный и оптимизированный код ⚡**
-   - Полностью удалены комментарии и лишний мусор для повышения производительности и снижения потребления ОЗУ.
+3. **Оптимизированный код ⚡**
+   - Легковесное решение с оптимизированным потреблением ОЗУ для повышения производительности.
    - Проект собирается с помощью современного менеджера Bun.
 
 ### 🎵 Примечание и Авторы звуков

@@ -6,6 +6,7 @@ const log = require("electron-log");
 const packageJson = require('../package.json');
 const Store = require("electron-store");
 
+// Initialize app name andUserData directory
 const APP_DISPLAY_NAME = String(packageJson.productName || packageJson.name || 'Mechvibes X')
   .trim()
   .replace(/^['"]+|['"]+$/g, '');
@@ -24,6 +25,7 @@ const SYSTRAY_ICON = path.join(__dirname, '/assets/system-tray-icon.png');
 const custom_dir = path.join(user_dir, '/custom');
 const current_pack_store_id = 'mechvibes-pack';
 
+// App setting StoreToggle managers
 const mute = new StoreToggle("mechvibes-muted", false);
 const start_minimized = new StoreToggle("mechvibes-start-minimized", false);
 const active_volume = new StoreToggle("mechvibes-active-volume", true);
@@ -58,6 +60,7 @@ global.custom_dir = custom_dir;
 global.current_pack_store_id = current_pack_store_id;
 fs.ensureDirSync(custom_dir);
 
+// Create application window
 function createWindow(show = false) {
   win = new BrowserWindow({
     name: "app",
@@ -111,6 +114,7 @@ function createWindow(show = false) {
   return win;
 }
 
+// Check for single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 app.on('second-instance', () => {
   if (win) {
@@ -141,6 +145,7 @@ if (!gotTheLock) {
       iohook.start();
     }
 
+    // Periodic system volume and mute check
     let volume = -1;
     let system_mute = false;
     let system_volume_error = false;
@@ -175,6 +180,7 @@ if (!gotTheLock) {
       }
     }, 3000);
 
+    // Keyboard event forwarders
     iohook.on('keydown', (event) => {
       win.webContents.send("keydown", event);
     });
@@ -183,6 +189,7 @@ if (!gotTheLock) {
       win.webContents.send("keyup", event);
     });
 
+    // Generate tray icon context menu
     function buildContextMenu(){
       return Menu.buildFromTemplate([
         {
@@ -352,6 +359,7 @@ if (!gotTheLock) {
       updateTrayMenu();
     });
 
+    // IPC listeners from renderer process
     ipcMain.on("show_tray_icon", (event, show) => {
       if(show && tray === null){
         createTrayIcon();
@@ -420,6 +428,7 @@ app.on('quit', () => {
 
 var editor_window = null;
 
+// Soundpack editor window opener
 function openEditorWindow() {
   if (editor_window) {
     editor_window.focus();

@@ -18,6 +18,7 @@ const CUSTOM_PACKS_DIR = remote.getGlobal('custom_dir');
 const OFFICIAL_PACKS_DIR = path.join(__dirname, 'audio');
 const APP_VERSION = remote.getGlobal('app_version');
 
+// Active settings state variables
 let active_volume = true;
 let system_volume = 50;
 let current_pack = null;
@@ -27,6 +28,7 @@ let spatial_audio_enabled = false;
 const packs = [];
 const all_sound_files = {};
 
+// IPC logger helper
 const log = {
   silly(message){
     raise_log_message("silly", message);
@@ -51,6 +53,7 @@ function raise_log_message(level, message){
   ipcRenderer.send("electron-log", message, level);
 }
 
+// Main pack loading logic
 function loadPack(packId = null){
   if(packId === null){
     Object.keys(packs).map((pid) => {
@@ -78,6 +81,7 @@ function loadPack(packId = null){
   });
 }
 
+// Promise-based sound loader helper
 function _loadPack(packId){
   return new Promise((resolve, reject) => {
     if(packs[packId] !== undefined){
@@ -124,6 +128,7 @@ function unloadAllPacks(){
   })
 }
 
+// Scan and parse both default and custom soundpacks
 async function loadPacks() {
   const official_packs = await glob.sync(OFFICIAL_PACKS_DIR + '/*').filter((entry) => {
     try {
@@ -219,6 +224,7 @@ function getPack(pack_id){
   return packs.find((pack) => pack.pack_id == pack_id);
 }
 
+// Get saved soundpack config from store
 function getSavedPack() {
   if (store.has(MV_PACK_LSID)) {
     const pack_id = store.get(MV_PACK_LSID);
@@ -234,6 +240,7 @@ function getSavedPack() {
 }
 
 
+// Select soundpack by string ID
 function setPack(pack_id){
   let index = 0;
   Object.keys(packs).map((packId) => {
@@ -290,6 +297,7 @@ function packsToOptions(packs, pack_list) {
   });
 }
 
+// DOM elements and settings initialization
 (function (window, document) {
   window.addEventListener('DOMContentLoaded', async () => {
     const version = document.getElementById('app-version');
@@ -487,6 +495,7 @@ function packsToOptions(packs, pack_list) {
   });
 })(window, document);
 
+// Horizontal coordinates map for key positions (-1.0 to 1.0)
 const keycodeToPan = {
   1: -1.0, 41: -1.0, 15: -1.0, 58: -1.0, 42: -1.0, 29: -1.0,
   2: -0.8, 16: -0.8, 30: -0.8, 44: -0.8, 3675: -0.8,
@@ -506,6 +515,7 @@ const keycodeToPan = {
   79: 1.0, 80: 1.0, 81: 1.0, 75: 1.0, 76: 1.0, 77: 1.0, 71: 1.0, 72: 1.0, 73: 1.0, 82: 1.0
 };
 
+// Play sound sample with optional volume, pitch, and pan variations
 function playSound(sound_id, volume) {
   if(current_pack.audio === undefined){
     return;
