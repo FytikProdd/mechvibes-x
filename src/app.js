@@ -130,14 +130,14 @@ function unloadAllPacks(){
 
 // Scan and parse both default and custom soundpacks
 async function loadPacks() {
-  const official_packs = await glob.sync(OFFICIAL_PACKS_DIR + '/*').filter((entry) => {
+  const official_packs = glob.sync(OFFICIAL_PACKS_DIR + '/*').filter((entry) => {
     try {
       return fs.statSync(entry).isDirectory();
     } catch {
       return false;
     }
   });
-  const custom_packs = await glob.sync(CUSTOM_PACKS_DIR + '/*');
+  const custom_packs = glob.sync(CUSTOM_PACKS_DIR + '/*');
   const folders = [...official_packs, ...custom_packs];
 
   log.info(`Loading ${folders.length} packs`);
@@ -386,7 +386,7 @@ function packsToOptions(packs, pack_list) {
       let primary = document.createElement('span');
       primary.innerText = `${volume.value}`;
       volume_value.innerHTML = `${primary.outerHTML}`;
-      if(active_volume){
+      if(active_volume && system_volume > 0){
         let adjusted = document.createElement('span');
         adjusted.innerText = `(${Math.round(volume.value * (100 / system_volume))})`;
         adjusted.style.marginLeft = '1em';
@@ -481,6 +481,7 @@ function packsToOptions(packs, pack_list) {
 
     random_button.addEventListener('click', (e) => {
       e.preventDefault();
+      if (packs.length <= 1) return;
       let getRandomPackId = () => {
         let randomId = Math.floor(Math.random() * packs.length);
         if (packs[randomId].pack_id === current_pack.pack_id) {
@@ -489,7 +490,14 @@ function packsToOptions(packs, pack_list) {
         return randomId;
       }
       const packId = getRandomPackId();
-      pack_list.selectedIndex = packId;
+      // Find the correct option by value instead of using selectedIndex (which breaks with optgroups)
+      const targetValue = packs[packId].pack_id;
+      for (let i = 0; i < pack_list.options.length; i++) {
+        if (pack_list.options[i].value === targetValue) {
+          pack_list.selectedIndex = i;
+          break;
+        }
+      }
       setPackByIndex(packId);
     });
   });
@@ -526,7 +534,7 @@ function playSound(sound_id, volume) {
     return;
   }
 
-  if(active_volume){
+  if(active_volume && system_volume > 0){
     const adjustedVolume = volume * (100 / system_volume);
     sound.volume(1);
     Howler.masterGain.gain.setValueAtTime(Number(adjustedVolume / 100), Howler.ctx.currentTime);

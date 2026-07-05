@@ -8,7 +8,7 @@ class SoundpackConfig {
 		this.key_define_type = config.key_define_type ?? null;
 		this.includes_numpad = config.includes_numpad !== false;
 		this.sound = config.sound ?? null;
-		this.soundup = config.soundup ?? null;
+		this.soundup = config.soundup || null;
 		this.defines = config.defines ?? null;
 
 		this.pack_id = meta.pack_id ?? null;
@@ -17,8 +17,9 @@ class SoundpackConfig {
 		this.is_archive = meta.is_archive ?? null;
 		this.is_custom = meta.is_custom ?? null;
 
+		const optionalKeys = ['soundup'];
 		for (let key in this) {
-			if (this[key] === null) {
+			if (this[key] === null && !optionalKeys.includes(key)) {
 				throw new Error(`SoundpackConfig: Missing required property: ${key}`);
 			}
 		}

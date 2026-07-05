@@ -282,8 +282,8 @@ Object.keys(pack_data.defines).map(kc => {
     current_key_define_mode = key_define_type;
 
     for (let kc in pack_data.defines) {
-      if (pack_data.defines[kc] && $(`.sound-file[data-keycode="${kc}"]`) && pack_data.defines[kc] != '' && pack_data.defines[kc] != [0, 0]) {
-        if (current_key_define_mode == 'manual') {
+      if (pack_data.defines[kc] && $(`.sound-file[data-keycode="${kc}"]`) && pack_data.defines[kc] != '' && !(Array.isArray(pack_data.defines[kc]) && pack_data.defines[kc][0] === 0 && pack_data.defines[kc][1] === 0)) {
+        if (current_edit_mode == 'manual') {
           if (typeof pack_data.defines[kc] == 'string') {
             $(`.sound-file[data-keycode="${kc}"]`).val(pack_data.defines[kc]);
           } else {

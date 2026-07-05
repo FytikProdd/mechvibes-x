@@ -34,7 +34,7 @@ All credits for the sounds go to this Discord community:
 
 ### 📦 Quick Download
 
-You don't need to build from source. Just head over to the **[Releases](https://github.com/FytikProdd/mechvibes-x/releases)** page, download `Mechvibes X 1.0.2.exe`, run it, and enjoy!
+You don't need to build from source. Just head over to the **[Releases](https://github.com/FytikProdd/mechvibes-x/releases)** page, download `Mechvibes X 1.0.5.exe`, run it, and enjoy!
 
 ---
 
@@ -81,7 +81,7 @@ If you prefer to compile it yourself:
 
 ### 📦 Быстрая загрузка
 
-Готовый портативный исполняемый файл можно скачать в разделе **[Releases](https://github.com/FytikProdd/mechvibes-x/releases)**. Достаточно скачать `Mechvibes X 1.0.2.exe`, запустить и печатать со звуком!
+Готовый портативный исполняемый файл можно скачать в разделе **[Releases](https://github.com/FytikProdd/mechvibes-x/releases)**. Достаточно скачать `Mechvibes X 1.0.5.exe`, запустить и печатать со звуком!
 
 ---
 

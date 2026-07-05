@@ -7,11 +7,9 @@ function remapper(from = 'standard', to = 'darwin', defines = {}) {
         defines['91'] = defines['3639'];
         defines['92'] = defines['70'];
         defines['93'] = defines['3653'];
-        defines['91'] = defines['57416'];
         defines['56'] = defines['3675'];
-        defines['3675'] = defines['56'];
         defines['3675'] = defines['3640'];
-        defines['56'] = defines['3676'];
+        defines['3676'] = defines['56'];
         defines['29'] = defines['3613'];
 
         defines['3597'] = defines['69'];

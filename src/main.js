@@ -150,11 +150,11 @@ if (!gotTheLock) {
     let system_mute = false;
     let system_volume_error = false;
     let sys_check_interval = setInterval(() => {
-      if(!mute.is_enabled){
+      if(!mute.is_enabled && win && !win.isDestroyed()){
         getVolume().then((v) => {
           if(v !== volume){
             volume = v;
-            win.webContents.send("system-volume-update", volume);
+            if(win && !win.isDestroyed()) win.webContents.send("system-volume-update", volume);
           }
         }).catch((err) => {
           clearInterval(sys_check_interval);
@@ -167,13 +167,12 @@ if (!gotTheLock) {
         getMute().then((m) => {
           if(m !== system_mute){
             system_mute = m;
-            win.webContents.send("system-mute-status", system_mute);
+            if(win && !win.isDestroyed()) win.webContents.send("system-mute-status", system_mute);
           }
         }).catch((err) => {
           clearInterval(sys_check_interval);
           if(err == "" && !system_volume_error){
             system_volume_error = true;
-            app.exit(1);
           }
           log.error(`Mute Error: ${err}`);
         });
@@ -366,8 +365,6 @@ if (!gotTheLock) {
       }else if(!show && tray !== null){
         tray.destroy()
         tray = null;
-      }else if(!show && tray === null){
-        createTrayIcon();
       }
     })
 
@@ -429,7 +426,6 @@ app.on("before-quit", () => {
 
 app.on('quit', () => {
   log.silly("Goodbye.");
-  app.quit();
 });
 
 var editor_window = null;
