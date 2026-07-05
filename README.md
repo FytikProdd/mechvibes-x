@@ -24,6 +24,12 @@
    - Comment-stripped, minified-ready, and lightweight Electron implementation for lower memory consumption.
    - Built and locked with Bun package manager for fast development.
 
+### 🎵 Soundpacks Notice & Credits
+Please note that **Mechvibes X does NOT contain any of the default/original soundpacks** from the legacy Mechvibes. All soundpacks included in this fork are completely new and custom! 
+
+All credits for the sounds go to this Discord community:
+👉 **[Discord Server](https://discord.com/invite/BFEUztB5Sc)**
+
 ---
 
 ### 📦 Quick Download
@@ -64,6 +70,12 @@ If you prefer to compile it yourself:
 3. **Очищенный и оптимизированный код ⚡**
    - Полностью удалены комментарии и лишний мусор для повышения производительности и снижения потребления ОЗУ.
    - Проект собирается с помощью современного менеджера Bun.
+
+### 🎵 Примечание и Авторы звуков
+Обратите внимание, что **Mechvibes X НЕ содержит ни одного стандартного пака звуков** из оригинальной версии Mechvibes. Все звуковые паки полностью новые и уникальные!
+
+Авторство всех используемых звуков принадлежит Discord-сообществу:
+👉 **[Discord-сервер](https://discord.com/invite/BFEUztB5Sc)**
 
 ---
 
