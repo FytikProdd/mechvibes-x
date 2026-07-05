@@ -1,0 +1,31 @@
+name: Soundpack Submission
+description: Submit your custom mechanical keyboard soundpack to be included in Mechvibes X!
+title: "[Soundpack] "
+labels: ["soundpack-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We love new soundpacks! Please fill in the details about your soundpack.
+  - type: input
+    id: pack-name
+    attributes:
+      label: Soundpack Name
+      placeholder: E.g., Holy Panda lubed switches
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Description / Sound Details
+      placeholder: E.g., Recorded using a Blue Yeti mic, mapped key-by-key.
+    validations:
+      required: true
+  - type: textarea
+    id: link
+    attributes:
+      label: Download Link or Attachment
+      description: Provide a link to your soundpack (.zip archive) or upload it here.
+      placeholder: E.g., Google Drive link, Dropbox link, or drag-and-drop the file.
+    validations:
+      required: true

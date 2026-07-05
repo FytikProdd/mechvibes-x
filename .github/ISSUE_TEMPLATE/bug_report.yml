@@ -1,0 +1,36 @@
+name: Bug report
+description: Create a report to help us improve Mechvibes X
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this issue! Please fill in the details below.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: E.g. The app crashes when I toggle Spatial Audio.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How did you trigger the bug?
+      placeholder: |
+        1. Open the app
+        2. Click on...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Info
+      description: E.g., Windows version, portable/installed version, etc.
+      placeholder: Windows 11 / Portable v1.0.2
+    validations:
+      required: true
