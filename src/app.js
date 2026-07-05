@@ -1,12 +1,9 @@
 'use strict';
 
-// All of the Node.js APIs are available in the preload process.
-// It has the same sandbox as a Chrome extension.
-// const gkm = require('gkm');
 const Store = require('electron-store');
-const store = new Store();
-const { Howl } = require('howler');
 const { shell, remote, ipcRenderer } = require('electron');
+const store = new Store({ cwd: remote.getGlobal('user_dir'), name: 'config' });
+const { Howl } = require('howler');
 const fs = require('fs');
 const glob = require('glob');
 const path = require('path');
@@ -22,10 +19,10 @@ const OFFICIAL_PACKS_DIR = path.join(__dirname, 'audio');
 const APP_VERSION = remote.getGlobal('app_version');
 
 let active_volume = true;
-let system_volume = 50; // a default just incase the algorithm needs to run before the volume is set
-let is_system_muted = false;
+let system_volume = 50;
 let current_pack = null;
 let current_key_down = null;
+let random_pitch_enabled = false;
 const packs = [];
 const all_sound_files = {};
 
@@ -83,25 +80,28 @@ function loadPack(packId = null){
 function _loadPack(packId){
   return new Promise((resolve, reject) => {
     if(packs[packId] !== undefined){
-      unloadAllPacks(); // unload all loaded packs before attempting to load a new pack.
+      unloadAllPacks();
       const pack = packs[packId];
-      if(pack.key_define_type == 'single'){
-        pack.LoadSounds().then(() => {
-          resolve();
-        }).catch((e) => {
+
+      const LOAD_TIMEOUT_MS = 30000;
+      const timeout = setTimeout(() => {
+        reject(new Error(`Load timed out after ${LOAD_TIMEOUT_MS / 1000}s for pack: ${pack.name}`));
+      }, LOAD_TIMEOUT_MS);
+
+      const settle = (err, result) => {
+        clearTimeout(timeout);
+        if (err) reject(err);
+        else resolve(result);
+      };
+
+      pack.LoadSounds()
+        .then(() => settle(null, true))
+        .catch((e) => {
           console.warn("Failed to load pack", e);
-          reject(e);
+          settle(e);
         });
-      }else{
-        pack.LoadSounds().then(() => {
-          resolve();
-        }).catch((e) => {
-          console.warn("Failed to load pack", e);
-          reject(e);
-        });
-      }
     }else{
-      reject("That packID doesn't exist");
+      reject(new Error("That packID doesn't exist"));
     }
   })
 }
@@ -123,11 +123,14 @@ function unloadAllPacks(){
   })
 }
 
-// ==================================================
-// load all pack
 async function loadPacks() {
-  // get all audio folders
-  const official_packs = await glob.sync(OFFICIAL_PACKS_DIR + '/*');
+  const official_packs = await glob.sync(OFFICIAL_PACKS_DIR + '/*').filter((entry) => {
+    try {
+      return fs.statSync(entry).isDirectory();
+    } catch {
+      return false;
+    }
+  });
   const custom_packs = await glob.sync(CUSTOM_PACKS_DIR + '/*');
   const folders = [...official_packs, ...custom_packs];
 
@@ -135,26 +138,41 @@ async function loadPacks() {
   log.debug(OFFICIAL_PACKS_DIR);
   log.debug(CUSTOM_PACKS_DIR);
 
-  // get pack data
   folders.map((folder) => {
-    // get folder name
-    const folder_name = path.basename(folder);
-    // define if custom pack
-    const is_custom = (folder.substring(0, CUSTOM_PACKS_DIR.length) == CUSTOM_PACKS_DIR) ? true : false;
-    const is_archive = path.extname(folder) == '.zip';
+    try{
+      const folder_name = path.basename(folder);
+      const is_custom = (folder.substring(0, CUSTOM_PACKS_DIR.length) == CUSTOM_PACKS_DIR) ? true : false;
+      const is_archive = path.extname(folder) == '.zip';
+      
+      if(path.extname(folder) == '.rar'){
+        log.warn(`Skipping .rar file (not supported): ${folder_name}`);
+        return;
+      }
 
-    let config_json = null;
-    let soundpack_metadata = null;
+      let config_json = null;
+      let soundpack_metadata = null;
 
-    if(!is_archive){
-      // define config file path
-      const config_file = `${folder.replace(/\/$/, '')}/config.json`;
+      if(!is_archive){
+        const config_file = `${folder.replace(/\/$/, '')}/config.json`;
 
-      // get pack info and defines data
-      if(fs.existsSync(config_file)){
-        // get config file
-        config_json = require(config_file);
-        // compile soundpack metadata
+        if(fs.existsSync(config_file)){
+          config_json = JSON.parse(fs.readFileSync(config_file, 'utf8'));
+          soundpack_metadata = {
+            pack_id: `${is_custom ? 'custom' : 'default'}-${folder_name}`,
+            group: is_custom ? 'Custom' : 'Default',
+            abs_path: folder,
+            folder_name,
+            is_custom,
+            is_archive,
+          };
+        }
+      }else{
+        const config_file = GetFileFromArchive(folder, "config.json");
+        if(config_file === null){
+          console.warn(`Failed to load config.json from archive: ${folder_name}`);
+          return;
+        }
+        config_json = JSON.parse(config_file);
         soundpack_metadata = {
           pack_id: `${is_custom ? 'custom' : 'default'}-${folder_name}`,
           group: is_custom ? 'Custom' : 'Default',
@@ -164,52 +182,35 @@ async function loadPacks() {
           is_archive,
         };
       }
-    }else{
-      // get config file
-      const config_file = GetFileFromArchive(folder, "config.json");
-      if(config_file === null){
-        console.warn(`Failed to load config.json from archive: ${folder_name}`);
+
+      if(config_json === null || soundpack_metadata === null){
+        console.warn(`Failed to load config.json: ${folder_name}`);
         return;
       }
-      config_json = JSON.parse(config_file);
-      // compile soundpack metadata
-      soundpack_metadata = {
-        pack_id: `${is_custom ? 'custom' : 'default'}-${folder_name}`,
-        group: is_custom ? 'Custom' : 'Default',
-        abs_path: folder,
-        folder_name,
-        is_custom,
-        is_archive,
-      };
-    }
 
-    if(config_json === null || soundpack_metadata === null){
-      console.warn(`Failed to load config.json: ${folder_name}`);
-      return;
-    }
-
-    // get soundpack config
-    let soundpack_config = null;
-    if(config_json.version === undefined){
-      const SoundpackConfig = require("./libs/soundpacks/config-v1");
-      soundpack_config = new SoundpackConfig(config_json, soundpack_metadata);
-    }else{
-      try{
-        const SoundpackConfig = require(`./libs/soundpacks/config-v${config_json.version}`);
+      let soundpack_config = null;
+      if(config_json.version === undefined){
+        const SoundpackConfig = require("./libs/soundpacks/config-v1");
         soundpack_config = new SoundpackConfig(config_json, soundpack_metadata);
-      }catch{
-        log.warn(`Unsupported config version (${config_json.version}): ${folder_name}`);
+      }else{
+        try{
+          const SoundpackConfig = require(`./libs/soundpacks/config-v${config_json.version}`);
+          soundpack_config = new SoundpackConfig(config_json, soundpack_metadata);
+        }catch{
+          log.warn(`Unsupported config version (${config_json.version}): ${folder_name}`);
+        }
       }
-    }
 
-    if(soundpack_config === null){
-      console.warn(`Failed to load soundpack config: ${folder_name}`);
-      return;
+      if(soundpack_config === null){
+        console.warn(`Failed to load soundpack config: ${folder_name}`);
+        return;
+      }
+      packs.push(soundpack_config);
+    }catch(err){
+      log.warn(`Skipping invalid soundpack "${path.basename(folder)}": ${err.message}`);
     }
-    packs.push(soundpack_config);
   });
 
-  // end load
   return;
 }
 
@@ -251,10 +252,7 @@ function setPackByIndex(index){
   store.set(MV_PACK_LSID, current_pack.pack_id);
 }
 
-// ==================================================
-// transform pack to select option list
 function packsToOptions(packs, pack_list) {
-  // get saved pack id
   const selected_pack_id = store.get(MV_PACK_LSID);
   const groups = [];
   packs.map((pack) => {
@@ -275,13 +273,7 @@ function packsToOptions(packs, pack_list) {
     const optgroup = document.createElement('optgroup');
     optgroup.label = group.name;
     for (let pack of group.packs) {
-      // check if selected
       const is_selected = selected_pack_id == pack.pack_id;
-      if (is_selected) {
-        // pack current pack to saved pack
-        setPack(pack.pack_id);
-      }
-      // add pack to pack list
       const opt = document.createElement('option');
       opt.text = pack.name;
       opt.value = pack.pack_id;
@@ -291,73 +283,34 @@ function packsToOptions(packs, pack_list) {
     pack_list.appendChild(optgroup);
   }
 
-  // on select an option
-  // update saved list id
   pack_list.addEventListener('change', (e) => {
     const selected_id = e.target.options[e.target.selectedIndex].value;
     setPack(selected_id);
   });
 }
 
-// ==================================================
-// main
 (function (window, document) {
   window.addEventListener('DOMContentLoaded', async () => {
     const version = document.getElementById('app-version');
-    const update_available = document.getElementById('update-available');
-    const debug_in_use = document.getElementById('remote-in-use');
-    const quick_disable_remote = document.getElementById('quick-disable-remote');
     const mechvibes_muted = document.getElementById('mechvibes-muted');
     const system_muted = document.getElementById('system-muted');
-    const new_version = document.getElementById('new-version');
     const app_logo = document.getElementById('logo');
     const app_body = document.getElementById('app-body');
     const pack_list = document.getElementById('pack-list');
     const random_button = document.getElementById('random-button');
-    const debug_button = document.getElementById('open-debug-options');
-    const debug_button_seperator = document.getElementById('debug-options-seperator');
     const volume_value = document.getElementById('volume-value-display');
     const volume = document.getElementById('volume');
     const tray_icon_toggle = document.getElementById("tray_icon_toggle");
     const tray_icon_toggle_group = document.getElementById("tray_icon_toggle_group");
+    const random_pitch_toggle = document.getElementById("random_pitch_toggle");
+    const random_pitch_toggle_group = document.getElementById("random_pitch_toggle_group");
 
-    // init
     app_logo.innerHTML = 'Loading...';
-
-    // set app version
     version.innerHTML = APP_VERSION;
 
-    // load all packs
     await loadPacks(app_logo, app_body);
-
-    // transform packs to options list
     packsToOptions(packs, pack_list);
 
-    // check for new version
-    fetch('https://api.github.com/repos/hainguyents13/mechvibes/releases/latest')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.tag_name.localeCompare(APP_VERSION, undefined, { numeric: true }) === 1) {
-          new_version.innerHTML = json.tag_name;
-          update_available.classList.remove('hidden');
-        }
-      });
-
-    // check if remote debugging can be enabled by user
-    fetch("https://beta.mechvibes.com/debug/status/", {
-      method: "GET",
-      headers: {
-        "User-Agent": `Mechvibes/${APP_VERSION} (Electron/${process.versions.electron})`
-      }
-    }).then(async (res) => {
-      const body = await res.text();
-      if(res.status == 200 && body == "enabled"){
-        debug_button.classList.remove("hidden");
-        debug_button_seperator.classList.remove("hidden");
-      }
-    });
-
-    // a little hack for open link in browser
     Array.from(document.getElementsByClassName('open-in-browser')).forEach((elem) => {
       elem.addEventListener('click', (e) => {
         e.preventDefault();
@@ -365,30 +318,42 @@ function packsToOptions(packs, pack_list) {
       });
     });
 
-    // get last selected pack
     current_pack = getSavedPack();
     loadPack()
 
-    // handle tray hiding
     if (store.get(MV_TRAY_LSID) !== undefined){
       tray_icon_toggle.checked = store.get(MV_TRAY_LSID);
     }
     tray_icon_toggle_group.onclick = function(e) {
       e.preventDefault();
       e.stopPropagation();
-      // toggle checkbox
       tray_icon_toggle.checked = !tray_icon_toggle.checked;
       ipcRenderer.send("show_tray_icon", tray_icon_toggle.checked);
       store.set(MV_TRAY_LSID, tray_icon_toggle.checked);
     }
 
-    // ensure tray icon is reflected
+    const MV_RANDOM_PITCH_LSID = 'mechvibes-random-pitch';
+    if (store.get(MV_RANDOM_PITCH_LSID) !== undefined){
+      random_pitch_toggle.checked = store.get(MV_RANDOM_PITCH_LSID);
+      random_pitch_enabled = random_pitch_toggle.checked;
+    } else {
+      random_pitch_toggle.checked = false;
+      random_pitch_enabled = false;
+    }
+    random_pitch_toggle_group.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      random_pitch_toggle.checked = !random_pitch_toggle.checked;
+      random_pitch_enabled = random_pitch_toggle.checked;
+      store.set(MV_RANDOM_PITCH_LSID, random_pitch_toggle.checked);
+      ipcRenderer.send("random-pitch-change", random_pitch_toggle.checked);
+    }
+
     let initTray = () => {
       ipcRenderer.send("show_tray_icon", tray_icon_toggle.checked);
     }
     initTray();
 
-    // volume
     let displayVolume = () => {
       let primary = document.createElement('span');
       primary.innerText = `${volume.value}`;
@@ -415,40 +380,12 @@ function packsToOptions(packs, pack_list) {
       displayVolume();
     };
 
-    volume.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      // Determine the scroll direction and adjust the volume
-      if (e.deltaY < 0) {
-        // Scroll up, increase volume
-        console.log("negative", volume.value, volume.step, volume.max);
-        volume.value = Math.min(parseInt(volume.max), parseInt(volume.value) + parseInt(volume.step));
-
-      } else {
-        // Scroll down, decrease volume
-        console.log("positive", volume.value, volume.step, volume.min);
-        volume.value = Math.max(parseInt(volume.min), parseInt(volume.value) - parseInt(volume.step));
-      }
-      store.set(MV_VOL_LSID, volume.value);
-      displayVolume();
-    });
-
-    // warn about debugging
-    ipcRenderer.on("debug-in-use", (_event, enabled) => {
-      if(enabled){
-        debug_in_use.classList.remove("hidden");
-      }else{
-        debug_in_use.classList.add("hidden");
-      }
-    });
-
     ipcRenderer.on("system-volume-update", (_event, vol) => {
       system_volume = vol;
       displayVolume();
     });
 
-    // warn about muted system
     ipcRenderer.on("system-mute-status", (_event, enabled) => {
-      is_system_muted = enabled;
       if(enabled){
         system_muted.classList.remove("hidden");
       }else{
@@ -456,7 +393,6 @@ function packsToOptions(packs, pack_list) {
       }
     });
 
-    // warn about muted mechvibes
     ipcRenderer.on("mechvibes-mute-status", (_event, enabled) => {
       if(enabled){
         mechvibes_muted.classList.remove("hidden");
@@ -470,10 +406,13 @@ function packsToOptions(packs, pack_list) {
       displayVolume();
     });
 
-    // store pressed state of multiple keys
+    ipcRenderer.on("random-pitch-toggle", (_event, enabled) => {
+      random_pitch_enabled = enabled;
+      random_pitch_toggle.checked = enabled;
+    });
+
     let pressed_keys = {};
 
-    // if key released, clear current key
     ipcRenderer.on('keyup', (_, { keycode }) => {
       let holding = false;
       pressed_keys[`${keycode}`] = false;
@@ -482,39 +421,31 @@ function packsToOptions(packs, pack_list) {
           holding = true;
         }
       }
-
-      const event = {
-        type: "keyup",
-        keycode: keycode,
+      if(current_pack) {
+        const sound_id = `keycode-${keycode}-up`;
+        playSound(sound_id, volume.value);
       }
-      playSound(event, volume.value);
 
       if(!holding){
         app_logo.classList.remove('pressed');
       }
     });
 
-    // key pressed, pack current key and play sound
     ipcRenderer.on('keydown', (_, { keycode }) => {
-      // if hold down a key, don't repeat the event
       if(pressed_keys[`${keycode}`] !== undefined && pressed_keys[`${keycode}`]){
         return;
       }
       pressed_keys[`${keycode}`] = true;
 
-      // display current pressed key
-      // app_logo.innerHTML = keycode;
       app_logo.classList.add('pressed');
+      current_key_down = keycode;
+      const sound_id = `keycode-${current_key_down}`;
 
-      const event = {
-        type: "keydown",
-        keycode: keycode,
+      if (current_pack) {
+        playSound(sound_id, volume.value);
       }
-      playSound(event, volume.value);
     });
 
-    // on random button click
-    // set random sound
     random_button.addEventListener('click', (e) => {
       e.preventDefault();
       let getRandomPackId = () => {
@@ -528,50 +459,50 @@ function packsToOptions(packs, pack_list) {
       pack_list.selectedIndex = packId;
       setPackByIndex(packId);
     });
-
-    debug_button.addEventListener('click', (e) => {
-      e.preventDefault();
-      ipcRenderer.send("open-debug-options");
-    })
-
-    quick_disable_remote.addEventListener('click', (e) => {
-      e.preventDefault();
-      ipcRenderer.send("set-debug-options", { enabled: false });
-    });
   });
 })(window, document);
 
-// ==================================================
-// universal play function
-function playSound(event, volume) {
-  if(current_pack === null || current_pack.audio === undefined){
+function playSound(sound_id, volume) {
+  if(current_pack.audio === undefined){
     // sound for this pack hasn't been loaded
+    return;
+  }
+  const play_type = current_pack.key_define_type ? current_pack.key_define_type : 'single';
+  const sound = play_type == 'single' ? current_pack.audio : current_pack.audio[sound_id];
+  if (!sound) {
     return;
   }
 
   if(active_volume){
     // dynamic volume adjustment
-    const adjustedVolume = volume * (100 / system_volume);
-    
-    if(!is_system_muted){
-      log.silly(`Volume: ${volume}`);
-      log.silly(`System Volume: ${system_volume}`);
-      log.silly(`Adjusted Volume: ${adjustedVolume}`);
-      log.silly(`Result Volume: ${adjustedVolume / 100}`);
-    }
+    log.silly(`Volume: ${volume}`);
+    log.silly(`System Volume: ${system_volume}`);
 
+    const adjustedVolume = volume * (100 / system_volume);
+
+    log.silly(`Adjusted Volume: ${adjustedVolume}`);
+    log.silly(`Result Volume: ${adjustedVolume / 100}`);
+
+    sound.volume(1);
     Howler.masterGain.gain.setValueAtTime(Number(adjustedVolume / 100), Howler.ctx.currentTime);
   }else{
+    sound.volume(1);
     Howler.masterGain.gain.setValueAtTime(Number(volume / 100), Howler.ctx.currentTime);
   }
 
-  if(current_pack.HandleEvent !== undefined){
-    // if pack has custom play sound function, use it
-    current_pack.HandleEvent(event, volume);
-    log.info(`Playing sound for keycode: ${event.keycode} (${event.type})`);
-    return;
-  }else{
-    log.warn("Pack version doesn't have a HandleEvent function");
-    return;
+  let soundId;
+  if (play_type == 'single') {
+    // When the pack ships multiple samples per key, pick one at random per keypress.
+    const variants = current_pack.audio_variants && current_pack.audio_variants[sound_id];
+    soundId = sound.play(variants ? variants[Math.floor(Math.random() * variants.length)] : sound_id);
+  } else {
+    soundId = sound.play();
+  }
+
+  if (random_pitch_enabled && soundId) {
+    const randomRate = 1 + (Math.random() - 0.5) * 0.08; // ±4% speed/pitch variation
+    sound.rate(randomRate, soundId);
+    const randomVolume = 1 + (Math.random() - 0.5) * 0.15; // ±7.5% volume variation
+    sound.volume(Math.max(0.1, Math.min(1.0, randomVolume)), soundId);
   }
 }

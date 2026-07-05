@@ -1,5 +1,6 @@
 const Store = require('electron-store');
-const store = new Store();
+const { app } = require('electron');
+const store = new Store({ cwd: app.getPath('userData'), name: 'config' });
 
 class StorageToggle {
   constructor(key, defaultVal) {

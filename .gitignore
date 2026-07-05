@@ -1,6 +1,5 @@
 node_modules
-out
-dist
-gist
-*.
+dist/*
+!dist/.gitkeep
 .DS_Store
+*.log

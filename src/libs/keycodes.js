@@ -106,26 +106,25 @@ const standard = {
   3676: 'Meta',
   3677: 'Menu',
 
-  // Numpad
   69: 'Num\nLock',
-  3637: '/', // Numpad
-  55: '*', // Numpad
-  74: '-', // Numpad
-  3597: '=', // Numpad
-  78: '+', // Numpad
-  3612: 'Enter', // Numpad
-  83: '.', // Numpad
+  3637: '/',
+  55: '*',
+  74: '-',
+  3597: '=',
+  78: '+',
+  3612: 'Enter',
+  83: '.',
 
-  79: '1', // Numpad
-  80: '2', // Numpad
-  81: '3', // Numpad
-  75: '4', // Numpad
-  76: '5', // Numpad
-  77: '6', // Numpad
-  71: '7', // Numpad
-  72: '8', // Numpad
-  73: '9', // Numpad
-  82: '0', // Numpad
+  79: '1',
+  80: '2',
+  81: '3',
+  75: '4',
+  76: '5',
+  77: '6',
+  71: '7',
+  72: '8',
+  73: '9',
+  82: '0'
 };
 
 const darwin = JSON.parse(JSON.stringify(standard));
@@ -157,8 +156,6 @@ Object.assign(win32, {
 
 const linux = JSON.parse(JSON.stringify(standard));
 
-// ==================================================
-// remap keycodes from standard to os based keycodes
 function keycodesRemap(defines) {
   const remapper = require('../utils/remapper');
   const sprite = remapper('standard', process.platform, {...defines});

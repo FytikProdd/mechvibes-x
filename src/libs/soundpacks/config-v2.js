@@ -1,21 +1,12 @@
-/**
- * Soundpack configuration version 1
- * 
- */
-
 const { Howl } = require('howler');
 const { keycodesRemap, keycodesFill } = require('../keycodes');
 const { GetSoundpackFile } = require('./file-manager');
 
 class SoundpackConfig {
-	/**
-	 * 
-	 * @param {object} config the decoded json of the soundpack config.json
-	 * @param {object} meta calculated metadata about the soundpack
-	 */
 	constructor(config, meta) {
 		this.name = config.name ?? null;
 		this.key_define_type = config.key_define_type ?? null;
+		this.includes_numpad = config.includes_numpad !== false;
 		this.sound = config.sound ?? null;
 		this.soundup = config.soundup ?? null;
 		this.defines = config.defines ?? null;
@@ -26,7 +17,6 @@ class SoundpackConfig {
 		this.is_archive = meta.is_archive ?? null;
 		this.is_custom = meta.is_custom ?? null;
 
-		// check all the keys for any null values and throw an error if there are any
 		for (let key in this) {
 			if (this[key] === null) {
 				throw new Error(`SoundpackConfig: Missing required property: ${key}`);
@@ -38,14 +28,15 @@ class SoundpackConfig {
 			const downkey = kc;
 
 			const setSound = (sound, key) => {
-				if (sound.indexOf('{') >= 0) {
-					// sound path contains a number range of {1-10}, so pick a random number from that and replace it
+				if (sound && sound.indexOf('{') >= 0) {
 					const range = sound.match(/\{(.+?)\}/g)[0];
 					const range_values = range.replace("{", "").replace("}", "").split("-");
 					const random_number = Math.floor(Math.random() * (range_values[1] - range_values[0] + 1) + range_values[0]);
 					sound = sound.replace(range, random_number);
 				}
-				this.defines[key] = sound;
+				if (sound) {
+					this.defines[key] = sound;
+				}
 			}
 
 			setSound(this.defines[downkey] ?? this.sound, downkey);
@@ -55,179 +46,111 @@ class SoundpackConfig {
 		this.version = 2;
 	}
 
-
-
-	/**
-	 * Load the sounds into memory
-	 */
 	LoadSounds(){
 		return new Promise((resolve, reject) => {
-			let beforeReject = (e) => {
-				// delete this.sound_data;
-				if(this.key_define_type == "single"){
-					if(this.audio){
-						this.audio.unload();
-						delete this.audio;
-					}
-				}else if(this.key_define_type == "multi"){
-					if(this.audio){
-						Object.keys(this.audio).map((kc) => {
-							this.audio[kc].unload();
-						});
-						delete this.audio;
-					}
-				}
-				reject(e);
-			}
-			let timeout = setTimeout(() => {
-				beforeReject("The soundpack took too long to load.");
-			}, 3000);
-
-			let wait = (audio) => {
-				return new Promise((res, rej) => {
-					if(audio.state() == "loaded"){
-						res();
-					}else{
-						audio.once('load', () => {
-							res();
-						})
-						audio.once('loaderror', (e) => {
-							rej(e);
-						})
-					}
-				});
-			}
+			let settled = false;
+			let finish = (err, result) => {
+				if (settled) return;
+				settled = true;
+				if (err) reject(err);
+				else resolve(result);
+			};
 
 			if(this.key_define_type == "single"){
-				// define sound path
 				const sound = GetSoundpackFile(this.abs_path, this.sound);
+				if (!sound) {
+					finish(new Error(`Sound file "${this.sound}" not found in pack "${this.name}"`));
+					return;
+				}
 				const sound_data = { src: [sound], sprite: keycodesRemap(this.defines) };
 
 				const audio = new Howl(sound_data);
-				wait(audio).then(() => {
-					clearTimeout(timeout);
+				const onLoad = () => {
 					this.audio = audio;
-					resolve();
-				}).catch((e) => {
-					beforeReject(e);
-				})
-			}else if(this.key_define_type == "multi"){
-				let sound_data = {};
-				Object.keys(this.defines).map((kc) => {
-					if (this.defines[kc]) {
-						// define sound path
-						const sound = GetSoundpackFile(this.abs_path, this.defines[kc]);
-						sound_data[kc] = { src: [sound] };
-					}
-				});
-				this.audio = {};
-				sound_data = keycodesRemap(sound_data);
-				Object.keys(sound_data).map((kc) => {
-					const audio = new Howl(sound_data[kc]);
-					wait(audio).then(() => {
-						clearTimeout(timeout);
-						this.audio[kc] = audio;
-						resolve();
-					}).catch((e) => {
-						beforeReject(e);
-					})
-				})
-			}else{
-				beforeReject("Invalid key_define_type");
-			}
+					finish(null, true);
+				};
+				const onError = (_id, err) => {
+					finish(new Error(`Failed to load sound: ${err || 'unknown error'}`));
+				};
 
+				if(audio.state() == "loaded"){
+					onLoad();
+				}else{
+					audio.once('load', onLoad);
+					audio.once('loaderror', onError);
+				}
+			}else if(this.key_define_type == "multi"){
+				let loaded = {};
+				let pending = 0;
+				let hasAny = false;
+
+				for (const kc of Object.keys(this.defines)) {
+					const file = this.defines[kc];
+					if (!file) continue;
+
+					const soundData = GetSoundpackFile(this.abs_path, file);
+					if (!soundData) continue;
+
+					pending++;
+					hasAny = true;
+					const remapped = keycodesRemap({ [kc]: { src: [soundData] } });
+					const mappedKc = Object.keys(remapped)[0];
+					const audio = new Howl(remapped[mappedKc]);
+
+					const onLoad = () => {
+						loaded[mappedKc] = audio;
+						pending--;
+						if (pending === 0) {
+							if (Object.keys(loaded).length === 0) {
+								finish(new Error(`No sounds could be loaded for pack "${this.name}"`));
+							} else {
+								this.audio = loaded;
+								finish(null, true);
+							}
+						}
+					};
+					const onError = (_id, err) => {
+						pending--;
+						if (pending === 0) {
+							if (Object.keys(loaded).length === 0) {
+								finish(new Error(`No sounds could be loaded for pack "${this.name}"`));
+							} else {
+								this.audio = loaded;
+								finish(null, true);
+							}
+						}
+					};
+
+					if(audio.state() == "loaded"){
+						onLoad();
+					}else{
+						audio.once('load', onLoad);
+						audio.once('loaderror', onError);
+					}
+				}
+
+				if (!hasAny) {
+					finish(new Error(`Pack "${this.name}" has no valid sound entries`));
+				}
+			}else{
+				finish(new Error("Invalid key_define_type"));
+			}
 		});
 	}
 
-	/**
-	 * Handle a sound event from the playSound function.
-	 * @param {object} event the event object containing the keycode and type
-	 * @property {string} event.type the type of the event, either "keydown" or "keyup"
-	 * @property {number} event.keycode the keycode of the key that was pressed
-	 */
-	HandleEvent(event){
-		let keycode = event.keycode;
-		if(event.type == "keyup"){
-			keycode = `${keycode}-up`;
-		}
-		const sound_id = `keycode-${keycode}`;
-		const play_type = this.key_define_type ? this.key_define_type : 'single';
-		const sound = play_type == 'single' ? this.audio : this.audio[sound_id];
-		if (!sound) {
-			return;
-		}
-
-		if (play_type == 'single') {
-			sound.play(sound_id);
-			console.log(this.audio);
-		} else {
-			sound.play();
-		}
-	}
-
-	/**
-	 * Unload the sounds from memory
-	 */
 	UnloadSounds(){
 		if(this.audio){
 			if(this.key_define_type == "single"){
 				this.audio.unload();
 				delete this.audio;
 			}else if(this.key_define_type == "multi"){
-				Object.keys(this.audio).map((kc) => {
+				for (const kc of Object.keys(this.audio)) {
 					this.audio[kc].unload();
-				});
+				}
 				delete this.audio;
-				console.log("unloaded");
 			}
 		}
 	}
 }
 
 module.exports = SoundpackConfig;
-
-
-// demo config
-let demo_config = {
-	// A unique identifier, usually assigned by the server
-	"id": "sound-pack-1200000000001",
-
-	// The name of the soundpack
-	"name": "CherryMX Black - ABS keycaps",
-
-	// how the key definitions are defined
-	"key_define_type": "single" || "multi",
-	// ^ If you're going to choose "single" you should just use a version 1 config.
-
-	// the sound file to use when key_define_type is "single".
-	// or when key_define_type is "multi", the sound file to fallback on
-	// when a key doesn't have a sound defined.
-	"sound": "sound.ogg",
-	// the fallback key_up sound file to use when key_define_type is "multi".
-	// Note that, this is not supported when key_define_type is "single", and will be ignored,
-	// but is still required.
-	"soundup": "sound_up.ogg",
-
-	// key definitions
-	"defines": {
-		// format
-		"keyCode": "definition",
-		// when key_define_type is "single"
-		"1": [
-			2894, // start time in milliseconds
-			226 // duration in milliseconds
-		],
-		"2": [
-			12946,
-			191
-		],
-		// when key_define_type is "multi"
-		"3": "sound.ogg",
-		"3-up": "sound_up.ogg",
-		"4": "sound.ogg",
-		"4-up": "sound_up.ogg"
-	},
-
-	// required
-	"version": 2
-}

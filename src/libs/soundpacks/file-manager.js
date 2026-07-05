@@ -1,20 +1,8 @@
-/**
- * Handles the loading of soundpack files automatically, regardless of format.
- * 
- * This class will load requested files into memory and return an object which can
- * be passed directly to howlerjs for playback.
- * 
- * Supported formats are:
- * - folders
- * - .zip files
- */
-
 const fs = require('fs');
 const path = require('path');
 const mime = require('mime-types');
 const Zip = require('adm-zip');
 
-// HACK: howlerjs is kinda dumb, so we need to modify mime types for some files
 mime.types['mp4'] = "audio/mp4";
 mime.types['wav'] = "audio/wav";
 

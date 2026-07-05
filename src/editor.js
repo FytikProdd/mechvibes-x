@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { shell } = require('electron');
+const { shell, remote } = require('electron');
 
 const remapper = require('./utils/remapper');
 const layouts = require('./libs/layouts');
@@ -12,7 +12,7 @@ const $ = require('./assets/jquery');
 const layout = layouts[process.platform];
 const { sizes } = layouts;
 const os_keycode = keycodes[process.platform];
-const CUSTOM_PACKS_DIR = path.join(__dirname, '../../../custom');
+const CUSTOM_PACKS_DIR = remote.getGlobal('custom_dir');
 
 let selected_keycode = null;
 let current_edit_mode = 'visual';
@@ -32,7 +32,6 @@ Object.keys(pack_data.defines).map(kc => {
 
 (function(document) {
   $(document).ready(() => {
-    // a little hack for open link in browser
     Array.from(document.getElementsByClassName('open-in-browser')).forEach(elem => {
       elem.addEventListener('click', e => {
         e.preventDefault();
@@ -40,7 +39,6 @@ Object.keys(pack_data.defines).map(kc => {
       });
     });
 
-    // open custom sound pack folder
     $('#open-custom-pack-folder').on('click', () => {
       shell.showItemInFolder(CUSTOM_PACKS_DIR);
     });
@@ -60,8 +58,6 @@ Object.keys(pack_data.defines).map(kc => {
         let k = 0;
         if (row.length) {
           for (let key of row) {
-            // visual edit
-            // <div class="key-rk">${r}-${k++}</div>
             const _key = $(`
               <div id="key-${key}" class="key ${sizes[key] ? sizes[key] : ''} ${key ? '' : 'key-blank'}" data-keycode="${key}">
                 <div class="letter">${os_keycode[key] || ''}</div> 
@@ -69,7 +65,6 @@ Object.keys(pack_data.defines).map(kc => {
            `);
             _key.appendTo(_row);
             _genPopover(_key, key, r > 3, zone == 'numpad');
-            // manual edit
             if (key) {
               const manual_key = $(`
                 <div id="manual-key-${key}" style="border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center" class="manual-key">
@@ -95,7 +90,6 @@ Object.keys(pack_data.defines).map(kc => {
       zone_wrapper.appendTo(keyboard_holder);
     }
 
-    // ======================
     $('#kb').on('click', '.key', e => {
       const target = $(e.currentTarget);
       if (target.hasClass('key-blank')) {
@@ -258,8 +252,6 @@ Object.keys(pack_data.defines).map(kc => {
     container.html(result);
   }
 
-  // ======================================
-  // new pack
   $('#create').on('click', () => {
     Object.assign(pack_data, {
       id: `custom-sound-pack-${Date.now()}`,
@@ -289,8 +281,6 @@ Object.keys(pack_data.defines).map(kc => {
     $(`#key-define-mode option[value=${key_define_type}]`).attr('selected', 'selected');
     current_key_define_mode = key_define_type;
 
-    console.log(key_define_type);
-
     for (let kc in pack_data.defines) {
       if (pack_data.defines[kc] && $(`.sound-file[data-keycode="${kc}"]`) && pack_data.defines[kc] != '' && pack_data.defines[kc] != [0, 0]) {
         if (current_key_define_mode == 'manual') {
@@ -318,8 +308,6 @@ Object.keys(pack_data.defines).map(kc => {
     }
   }
 
-  // ======================================
-  // inport
   $('#import').on('click', e => {
     $('#import-input').click();
   });
@@ -331,8 +319,6 @@ Object.keys(pack_data.defines).map(kc => {
     genResults();
   });
 
-  // ======================================
-  // export
   $('#export').on('click', e => {
     var a = document.createElement('a');
     var file = new Blob([JSON.stringify(pack_data, null, 2)], { type: 'text/plain' });

@@ -19,7 +19,6 @@ body {
   font-size: 14px;
 }
 
-/* keyboard layout css */
 #kb {
   display: flex;
 }
@@ -148,7 +147,6 @@ body {
   width: calc(var(--keybasewidth) * 6.25) !important;
 }
 
-/* pack info editor */
 #pack-header {
   margin-bottom: 30px;
 }

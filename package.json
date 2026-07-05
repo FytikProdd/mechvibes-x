@@ -1,9 +1,8 @@
 {
-  "name": "mechvibes",
-  "productName": "Mechvibes",
-  "version": "v2.3.5",
-  "description": "Play mechanical keyboard sounds as you type.",
-  "repository": "https://github.com/hainguyents13/mechvibes",
+  "name": "mechvibes-x",
+  "productName": "Mechvibes X",
+  "version": "1.0.0",
+  "description": "Play mechanical keyboard sounds as you type. (cleaned fork of Mechvibes)",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -14,12 +13,8 @@
     "build:clean": "node tools/clean-dist.js"
   },
   "keywords": [],
-  "homepage": "https://mechvibes.com",
-  "author": {
-    "name": "Hai Nguyen",
-    "email": "hainguyen.ts13@gmail.com"
-  },
   "license": "MIT",
+  "author": "",
   "iohook": {
     "targets": [
       "electron-87"
@@ -34,15 +29,13 @@
     ]
   },
   "build": {
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "include": "./build/installer.nsh"
+    "directories": {
+      "output": "dist"
     },
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": [
             "x64"
           ]
@@ -90,7 +83,6 @@
   "dependencies": {
     "adm-zip": "^0.5.10",
     "easy-volume": "^1.1.0",
-    "electron-fetch": "^1.9.1",
     "electron-log": "^4.4.8",
     "electron-store": "^6.0.0",
     "fs-extra": "^9.0.1",
